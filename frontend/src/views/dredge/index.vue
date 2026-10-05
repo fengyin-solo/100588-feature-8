@@ -44,7 +44,7 @@
       <tbody>
         <tr v-for="row in rows" :key="String(row.id)">
           <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
-          <td>{{ row.status }}</td>
+          <td><span class="status-tag" :class="statusTone(String(row.status))">{{ row.status }}</span></td>
           <td class="row-actions">
             <button
               v-for="action in actions"
@@ -71,7 +71,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 
 import {
   downloadEntries,
@@ -80,12 +81,17 @@ import {
   runAction as applyAction,
 } from '@/api/local-service'
 import type { EntryRow } from '@/data/types'
+import { useSessionStore } from '@/stores/session'
+import { statusTone } from '@/utils/status-tone'
 
 const meta = moduleMeta('dredge')
 const columns = ["清淤编号", "清淤管段", "淤积厚度", "清淤方式", "清淤班组", "清淤日期", "清淤量", "清淤状态"]
 const actions = ["提交清淤", "确认完工", "要求返工"]
 const statuses = ["待清淤", "清淤中", "已完工", "需返工"]
 const stats = [{"label": "待清淤管段", "value": 0}, {"label": "清淤中管段", "value": 0}, {"label": "本月完工数", "value": 0}]
+
+const route = useRoute()
+const session = useSessionStore()
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
@@ -98,6 +104,14 @@ const statusSummary = computed(() =>
     count: rows.value.filter((row) => String(row.status) === status).length,
   })),
 )
+
+// 从排水管网页「清淤记录」跳过来时，带着管段编号，直接按它筛好。
+function applyRouteQuery() {
+  const segment = route.query.管段
+  if (typeof segment === 'string' && segment !== '') {
+    filters.value = { ...filters.value, 清淤管段: segment }
+  }
+}
 
 function resetFilters() {
   filters.value = {}
@@ -114,7 +128,7 @@ function openCreate() {
 
 function runAction(action: string, row: EntryRow) {
   errorMessage.value = ''
-  const result = applyAction(meta.key, Number(row.id), action)
+  const result = applyAction(meta.key, Number(row.id), action, session.operator)
   if (!result.ok) {
     errorMessage.value = result.message
     return
@@ -133,5 +147,13 @@ function reload() {
   }
 }
 
-onMounted(reload)
+watch(() => route.query.管段, () => {
+  applyRouteQuery()
+  reload()
+})
+
+onMounted(() => {
+  applyRouteQuery()
+  reload()
+})
 </script>
