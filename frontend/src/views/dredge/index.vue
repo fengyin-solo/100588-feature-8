@@ -33,6 +33,8 @@
       <button class="btn ghost" type="button" @click="resetFilters">重置条件</button>
     </form>
 
+    <p v-if="jumpNotice" class="notice-text">{{ jumpNotice }}</p>
+
     <table class="data-table">
       <thead>
         <tr>
@@ -71,7 +73,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 
 import {
   downloadEntries,
@@ -85,13 +88,20 @@ const meta = moduleMeta('dredge')
 const columns = ["清淤编号", "清淤管段", "淤积厚度", "清淤方式", "清淤班组", "清淤日期", "清淤量", "清淤状态"]
 const actions = ["提交清淤", "确认完工", "要求返工"]
 const statuses = ["待清淤", "清淤中", "已完工", "需返工"]
-const stats = [{"label": "待清淤管段", "value": 0}, {"label": "清淤中管段", "value": 0}, {"label": "本月完工数", "value": 0}]
+
+const route = useRoute()
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
+const jumpNotice = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+const stats = ref([
+  { label: '待清淤管段', value: 0 },
+  { label: '清淤中管段', value: 0 },
+  { label: '本月完工数', value: 0 },
+])
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
@@ -99,8 +109,33 @@ const statusSummary = computed(() =>
   })),
 )
 
+function refreshStats() {
+  const all = listEntries(meta.key).items
+  const month = new Date().toISOString().slice(0, 7)
+  stats.value = [
+    { label: '待清淤管段', value: all.filter((row) => String(row.status) === '待清淤').length },
+    { label: '清淤中管段', value: all.filter((row) => String(row.status) === '清淤中').length },
+    {
+      label: '本月完工数',
+      value: all.filter(
+        (row) => String(row.status) === '已完工' && String(row['清淤日期'] ?? '').startsWith(month),
+      ).length,
+    },
+  ]
+}
+
+// 从排水管网跳过来时带着 ?管段=GD-xxxx，直接按它过滤，就是这段管的清淤记录。
+function applyRouteQuery() {
+  const seg = route.query.管段
+  if (typeof seg === 'string' && seg.trim()) {
+    filters.value = { ...filters.value, 清淤管段: seg.trim() }
+    jumpNotice.value = `来自排水管网的跳转：正在看管段「${seg.trim()}」的清淤记录`
+  }
+}
+
 function resetFilters() {
   filters.value = {}
+  jumpNotice.value = ''
   reload()
 }
 
@@ -128,10 +163,22 @@ function reload() {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    refreshStats()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '管网清淤列表读取失败'
   }
 }
 
-onMounted(reload)
+watch(
+  () => route.query.管段,
+  () => {
+    applyRouteQuery()
+    reload()
+  },
+)
+
+onMounted(() => {
+  applyRouteQuery()
+  reload()
+})
 </script>

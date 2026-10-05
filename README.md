@@ -67,5 +67,8 @@ npm run build
   `frontend/src/api/local-service.ts`。
 - 字段、状态、动作与流转目标集中在 `frontend/src/data/modules.ts`；示例数据在
   `frontend/src/data/seed.ts`。
-- 状态流转只允许在 `local-service.ts` 里改，页面组件不做业务判断。
-- 想回到初始数据：清掉浏览器里 `drainage-pump:entries` 这一项，或调用 `resetModule(模块)`。
+- 状态流转只允许在 `local-service.ts` 里改，页面组件不做业务判断；每次流转都会写一条留痕到
+  `frontend/src/data/change-log.ts`（谁、什么时候、从什么状态改成什么状态）。
+- 排水管网的按井定位组合查询、管径区间筛选、空结果诊断、乐观锁改管径、巡线办结同步清淤待开工台账，
+  集中在 `frontend/src/api/pipe-service.ts`。
+- 想回到初始数据：清掉浏览器里 `drainage-pump:entries:v2` 这一项，或调用 `resetModule(模块)`。

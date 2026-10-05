@@ -36,3 +36,17 @@ export type OverviewResult = {
   cards: { label: string; value: number }[]
   modules: { name: string; created: number; pending: number; abnormal: number }[]
 }
+
+/** 状态/关键字段改动留痕：谁在什么时候把哪一条从什么改成什么，可倒查。 */
+export type ChangeLogRow = {
+  id: number
+  module: string
+  rowId: number
+  code: string
+  category: string
+  action: string
+  fromValue: string
+  toValue: string
+  operator: string
+  time: string
+}

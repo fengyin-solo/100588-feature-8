@@ -1,4 +1,5 @@
 import { MODULE_BY_KEY } from '@/data/modules'
+import { appendChangeLog } from '@/data/change-log'
 import { allRows, listRows, resetRows, saveRows } from '@/data/local-store'
 import type { ActionResult, EntryRow, ModuleMeta, OverviewResult, PageResult } from '@/data/types'
 
@@ -28,7 +29,7 @@ export function listEntries(key: string, filters: Record<string, string> = {}): 
   return { items: matched, total: matched.length, page: 1, size: matched.length }
 }
 
-export function runAction(key: string, id: number, action: string): ActionResult {
+export function runAction(key: string, id: number, action: string, operator = '值班管理员'): ActionResult {
   const meta = moduleMeta(key)
   const target = meta.actionTargets[action]
   if (!target) {
@@ -44,15 +45,30 @@ export function runAction(key: string, id: number, action: string): ActionResult
     return { ok: false, message: `${meta.entity}已经是「${target}」，不用重复操作` }
   }
   const lastStatus = meta.statuses[meta.statuses.length - 1]
+  const statusField = meta.fields.find((field) => field.endsWith('状态'))
   const updated: EntryRow = {
     ...rows[index],
     status: target,
     pending: target !== lastStatus,
     abnormal: NEGATIVE_ACTIONS.some((verb) => action.startsWith(verb)),
   }
+  // 数据里那个以「状态」结尾的字段跟着流转目标走，导出清单时两处不会打架。
+  if (statusField) {
+    updated[statusField] = target
+  }
   const next = [...rows]
   next[index] = updated
   saveRows(key, next)
+  appendChangeLog({
+    module: key,
+    rowId: id,
+    code: String(updated[meta.fields[0]] ?? id),
+    category: '状态变更',
+    action,
+    fromValue: current,
+    toValue: target,
+    operator,
+  })
   return { ok: true, message: `${meta.entity}已${action}，当前状态「${target}」` }
 }
 
